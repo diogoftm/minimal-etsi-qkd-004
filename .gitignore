@@ -1,0 +1,4 @@
+cmake-build-dir
+*.csr
+*.key
+*.pem

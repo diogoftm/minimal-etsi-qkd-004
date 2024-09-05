@@ -13,6 +13,7 @@ include_directories(include
 add_compile_definitions(
         QKD_LOG_INFO
 #        QKD_LOG_DEBUG
+#        QKD_LOG_PRODUCTION
 )
 
 add_library(etsi-gs-qkd-004
@@ -36,3 +37,11 @@ target_link_libraries(client_example PUBLIC etsi-gs-qkd-004)
 
 add_executable(server_example src/server_example.c)
 target_link_libraries(server_example PUBLIC etsi-gs-qkd-004)
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+
+add_library(client_api SHARED
+        src/client_api.c
+        )
+
+target_link_libraries(client_api PUBLIC etsi-gs-qkd-004 uuid OpenSSL::SSL)
