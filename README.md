@@ -43,7 +43,7 @@ The user can build both the library and the examples using the following command
 ```shell
 cd etsi-gs-qkd-004-c
 mkdir cmake-build-dir
-cd build-dir
+cd cmake-build-dir
 cmake ..
 make
 cd ..
