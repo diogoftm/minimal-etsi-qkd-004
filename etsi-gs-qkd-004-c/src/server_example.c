@@ -101,42 +101,42 @@ qkd_key_buffer_t gen_oblivious_pseudorandom_key(qkd_uri_t source, qkd_uri_t dest
 void qkd_open_connect(qkd_uri_t source, qkd_uri_t destination, qkd_qos_t *qos, uuid_t *key_stream_id,
                       qkd_status_t *status, void *app_context_data)
 {
+    *qos = *qos;
+    *status = qkd_status_code_successful;
 
     srand(time(NULL));
-
-    if (uuid_compare(*key_stream_id, (uuid_t){}) == 0)
-        uuid_generate_random(*key_stream_id); // Generate random if KSID is 00000000-0000-0000-0000-000000000000
-    *qos = *qos;
-
-    // Use or modify app_context_data
     server_context_data_example_t *config = app_context_data;
     qkd_ksid_info_t *ksid_info_list = config->ksid_info_linked_list;
 
-    while (ksid_info_list != NULL)
-    { // Check KSID does not exist
-        if (uuid_compare(*key_stream_id, ksid_info_list->key_stream_id) == 0)
+    if (uuid_compare(*key_stream_id, (uuid_t){}) == 0) // If KSID is 00000000-0000-0000-0000-000000000000
+    {
+        while (ksid_info_list != NULL)
         {
-            *status = qkd_status_code_oc_ksid_already_in_use;
-            return;
+            if (strcmp(ksid_info_list->source, source) == 0 && strcmp(ksid_info_list->destination, destination) == 0)
+            {
+                uuid_copy(*key_stream_id, ksid_info_list->key_stream_id);
+                return;
+            }
+            ksid_info_list = ksid_info_list->ksid_info_next;
         }
-        ksid_info_list = ksid_info_list->ksid_info_next;
+
+        // A real KMS shall block here until the other App makes the same request but
+        // since there's no SDN Agent in this simulation setup, the request is answered right away
+
+        uuid_generate_random(*key_stream_id);
+        qkd_ksid_info_t *new_ksid_info = (qkd_ksid_info_t *)calloc(1, sizeof(qkd_ksid_info_t));
+        uuid_copy(new_ksid_info->key_stream_id, *key_stream_id);
+        qkd_copy_qos(&new_ksid_info->qos, qos);
+        qkd_copy_uri(&new_ksid_info->source, &source);
+        qkd_copy_uri(&new_ksid_info->destination, &destination);
+        new_ksid_info->current_index = 0;
+        new_ksid_info->ksid_info_next = NULL;
+
+        if (ksid_info_list == NULL)
+            config->ksid_info_linked_list = new_ksid_info; // Insert as the first element of the linked list
+        else
+            ksid_info_list->ksid_info_next = new_ksid_info; // Insert at the end of the linked list
     }
-
-    // Adding new ksid_info to shared data
-    qkd_ksid_info_t *new_ksid_info = (qkd_ksid_info_t *)calloc(1, sizeof(qkd_ksid_info_t));
-    uuid_copy(new_ksid_info->key_stream_id, *key_stream_id);
-    qkd_copy_qos(&new_ksid_info->qos, qos);
-    qkd_copy_uri(&new_ksid_info->source, &source);
-    qkd_copy_uri(&new_ksid_info->destination, &destination);
-    new_ksid_info->current_index = 0;
-    new_ksid_info->ksid_info_next = NULL;
-
-    if (ksid_info_list == NULL)
-        config->ksid_info_linked_list = new_ksid_info; // Insert as the first element of the linked list
-    else
-        ksid_info_list->ksid_info_next = new_ksid_info; // Insert at the end of the linked list
-
-    *status = qkd_status_code_successful;
 }
 
 void qkd_get_key(uuid_t key_stream_id, uint32_t *index, qkd_key_buffer_t *key_buffer, qkd_metadata_t *metadata,
@@ -164,15 +164,20 @@ void qkd_get_key(uuid_t key_stream_id, uint32_t *index, qkd_key_buffer_t *key_bu
     size_t key_size = ksid_info_list->qos.key_chunk_size;
 
     qkd_key_buffer_t key_data;
-    qkd_key_info_t* meta_value = (qkd_key_info_t*) metadata->data;
+    qkd_key_info_t *meta_value = (qkd_key_info_t *)metadata->data;
+    printf("%s %s %i\n", ksid_info_list->source, ksid_info_list->destination, *index);
     if (meta_value->key_type == qkd_key_type_symmetric)
+    {
         key_data = gen_pseudorandom_key(ksid_info_list->source, ksid_info_list->destination, key_size,
                                         *index);
+    }
     else
     {
-        if (ksid_info_list->current_index == *index)
+        if (meta_value->key_role == 16)
+        {
             key_data = gen_oblivious_pseudorandom_key(ksid_info_list->source, ksid_info_list->destination, key_size,
                                                       *index, 1);
+        }
         else
             key_data = gen_oblivious_pseudorandom_key(ksid_info_list->source, ksid_info_list->destination, key_size,
                                                       *index, 2);
@@ -191,26 +196,9 @@ void qkd_close(uuid_t key_stream_id, qkd_status_t *status, void *app_context_dat
     // Use or modify app_context_data
     server_context_data_example_t *config = app_context_data;
     qkd_ksid_info_t *ksid_info_list = config->ksid_info_linked_list, *ksid_info_prev = NULL;
-    while (ksid_info_list != NULL)
-    {
-        if (uuid_compare(key_stream_id, ksid_info_list->key_stream_id) == 0)
-            break;
-        // ksid_info_list = ksid_info_list->ksid_info_next;
-        // ksid_info_prev = ksid_info_list;
-    }
 
-    if (ksid_info_list == NULL)
-    { // KSID not found
-        *status = qkd_status_code_no_qkd_connection_available;
-        return;
-    }
+    // ...
 
-    /*
-    if (ksid_info_prev == NULL)
-        config->ksid_info_linked_list = ksid_info_list->ksid_info_next; // KSID found at the beginning of the linked list
-    else
-        ksid_info_prev->ksid_info_next = ksid_info_list->ksid_info_next;
-    */
     *status = qkd_status_code_successful;
 }
 
