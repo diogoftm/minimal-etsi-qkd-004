@@ -35,7 +35,7 @@ void free_qkd_open_connect_response(qkd_open_connect_response_t* oc_response) {
 }
 
 void free_qkd_get_key_request(qkd_get_key_request_t* gk_request) {
-    free_qkd_bytes(&gk_request->metadata);
+    //free_qkd_bytes(&gk_request->metadata);
     return;
 }
 

@@ -117,6 +117,7 @@ void qkd_open_connect(qkd_uri_t source, qkd_uri_t destination, qkd_qos_t *qos, u
                 uuid_copy(*key_stream_id, ksid_info_list->key_stream_id);
                 return;
             }
+            if (ksid_info_list->ksid_info_next == NULL) break;
             ksid_info_list = ksid_info_list->ksid_info_next;
         }
 
@@ -133,16 +134,24 @@ void qkd_open_connect(qkd_uri_t source, qkd_uri_t destination, qkd_qos_t *qos, u
         new_ksid_info->ksid_info_next = NULL;
 
         if (ksid_info_list == NULL)
+        {
             config->ksid_info_linked_list = new_ksid_info; // Insert as the first element of the linked list
+        }
         else
-            ksid_info_list->ksid_info_next = new_ksid_info; // Insert at the end of the linked list
+        {
+            qkd_ksid_info_t *last_node = ksid_info_list;
+            while (last_node->ksid_info_next != NULL)
+            {
+                last_node = last_node->ksid_info_next;
+            }
+            last_node->ksid_info_next = new_ksid_info; // Insert at the end of the linked list
+        }
     }
 }
 
 void qkd_get_key(uuid_t key_stream_id, uint32_t *index, qkd_key_buffer_t *key_buffer, qkd_metadata_t *metadata,
                  qkd_status_t *status, void *app_context_data)
 {
-    // Use or modify app_context_data
     server_context_data_example_t *config = app_context_data;
 
     char device_info[SSL3_RT_MAX_PLAIN_LENGTH];
@@ -156,20 +165,18 @@ void qkd_get_key(uuid_t key_stream_id, uint32_t *index, qkd_key_buffer_t *key_bu
     }
 
     if (ksid_info_list == NULL)
-    { // KSID not found
+    {
         *status = qkd_status_code_gk_peer_not_connected;
         return;
     }
 
     size_t key_size = ksid_info_list->qos.key_chunk_size;
-
     qkd_key_buffer_t key_data;
     qkd_key_info_t *meta_value = (qkd_key_info_t *)metadata->data;
-    printf("%s %s %i\n", ksid_info_list->source, ksid_info_list->destination, *index);
+
     if (meta_value->key_type == qkd_key_type_symmetric)
     {
-        key_data = gen_pseudorandom_key(ksid_info_list->source, ksid_info_list->destination, key_size,
-                                        *index);
+        key_data = gen_pseudorandom_key(ksid_info_list->source, ksid_info_list->destination, key_size, *index);
     }
     else
     {
@@ -179,9 +186,12 @@ void qkd_get_key(uuid_t key_stream_id, uint32_t *index, qkd_key_buffer_t *key_bu
                                                       *index, 1);
         }
         else
+        {
             key_data = gen_oblivious_pseudorandom_key(ksid_info_list->source, ksid_info_list->destination, key_size,
                                                       *index, 2);
+        }
     }
+
     sprintf(device_info, "{\"device_info\": [\"key_rate\": %d, \"qber\": %f]}", config->key_rate, config->qber);
     size_t data_size = qkd_sizeof_str(device_info);
     *metadata = (qkd_metadata_t){data_size, malloc(data_size)};
