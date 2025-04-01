@@ -10,8 +10,6 @@ with an ETSI GS QKD 004 compliant structure.
 # Contents
 
 * [Dependencies](#dependencies)
-    * [Cmake](#cmake)
-    * [Libexplain](#libexplain)
 * [Build](#build)
 * [Usage](#usage)
     * [Library location](#library-location)
@@ -20,20 +18,10 @@ with an ETSI GS QKD 004 compliant structure.
 
 ## Dependencies <a name="dependencies"></a>
 
-### Cmake <a name="cmake"></a>
-
-Cmake is used to build the library and the examples.
+The main dependencies can be installed using the apt packet manager with following command: 
 
 ```shell
-sudo apt install cmake
-```
-
-### Libexplain <a name="libexplain"></a>
-
-Libexplain is used to provide detailed info about the socket connection problems.
-
-```shell
-sudo apt install libexplain-dev
+sudo apt install cmake libssl-dev uuid-dev libexplain-dev
 ```
 
 ## Build <a name="build"></a>
